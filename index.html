@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Terminal RATP – Simulation</title>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+body{margin:0;background:#000;display:flex;justify-content:center;align-items:center;height:100vh;font-family:Arial}
+.tc26-shell{width:392px;height:780px;background:linear-gradient(#0a0f16,#020409);border-radius:34px;padding:10px;display:flex;flex-direction:column}
+.tc26-top,.tc26-bottom{color:#9ecfff;font-size:12px;display:flex;justify-content:space-between;padding:6px 10px}
+.tc26-screen{flex:1;background:#071a33;border-radius:22px;padding:12px;color:white;display:flex;flex-direction:column}
+.screen{display:none;flex:1;flex-direction:column}
+button,input{width:100%;padding:12px;margin:6px 0;border-radius:14px;border:none;font-size:16px}
+button{background:#2b8df2;color:white;font-weight:bold}
+.ticket{background:#fff;color:black;border-radius:12px;padding:10px;margin-top:10px;font-family:monospace}
+.valid{color:green;font-weight:bold}
+.invalid{color:red;font-weight:bold}
+#reader{border:3px solid #2b8df2;border-radius:14px}
+</style>
+</head>
+
+<body>
+
+<div class="tc26-shell">
+
+<div class="tc26-top">
+<span>RATP • Terminal</span>
+<span id="clock"></span>
+</div>
+
+<div class="tc26-screen">
+
+<div class="screen" id="main">
+<h3>🚌 TERMINAL RATP</h3>
+<button onclick="show('driver')">👨‍✈️ Chauffeur</button>
+<button onclick="show('control')">🕵️ Contrôleur</button>
+</div>
+
+<div class="screen" id="driver">
+<h3>VENTE</h3>
+<button onclick="sell()">🎫 Ticket (1 min)</button>
+<button onclick="show('main')">⬅ Retour</button>
+<div id="ticketBox"></div>
+</div>
+
+<div class="screen" id="control">
+<h3>CONTRÔLE</h3>
+<button onclick="startScan()">📷 Scanner</button>
+<button onclick="show('main')">⬅ Retour</button>
+<div id="reader"></div>
+<div id="result"></div>
+<div id="fineBox"></div>
+</div>
+
+</div>
+
+<div class="tc26-bottom">
+<span>🔋 86%</span><span>4G</span>
+</div>
+
+</div>
+
+<script>
+/* HORLOGE */
+setInterval(()=>clock.innerText=new Date().toLocaleTimeString().slice(0,5),1000);
+
+/* STOCKAGE */
+let tickets = {};
+let scanner;
+
+/* NAV */
+function show(id){
+document.querySelectorAll('.screen').forEach(s=>s.style.display="none");
+document.getElementById(id).style.display="flex";
+}
+show("main");
+
+/* VENTE */
+function sell(){
+const expires = Date.now() + 60000; // 1 min
+const code = "RATP-"+Math.random().toString(36).substr(2,8).toUpperCase();
+
+tickets[code] = expires;
+
+const data = { code, expires };
+
+let div=document.createElement("div");
+div.className="ticket";
+div.innerHTML=`Code: ${code}<br>Expire: ${new Date(expires).toLocaleTimeString()}<div class="qr"></div>`;
+ticketBox.prepend(div);
+
+QRCode.toCanvas(JSON.stringify(data),{width:130},(_,c)=>div.querySelector(".qr").appendChild(c));
+}
+
+/* SCAN */
+function startScan(){
+reader.innerHTML="";
+result.innerHTML="";
+fineBox.innerHTML="";
+scanner=new Html5Qrcode("reader");
+scanner.start({facingMode:"environment"},{fps:10,qrbox:250},check);
+}
+
+/* CONTRÔLE (CORRIGÉ) */
+function check(text){
+let data;
+try{ data=JSON.parse(text); }
+catch{
+result.innerHTML="<div class='ticket invalid'>QR INVALIDE</div>";
+return;
+}
+
+let now=Date.now();
+let status="INVALIDE";
+
+if(tickets[data.code]){
+status = now<=tickets[data.code] ? "VALIDE" : "EXPIRÉ";
+}
+
+result.innerHTML=`
+<div class="ticket">
+Code: ${data.code}<br>
+<b class="${status==="VALIDE"?"valid":"invalid"}">${status}</b>
+</div>`;
+
+if(status!=="VALIDE") showFine(data.code);
+
+// stop APRÈS affichage (sans casser le script)
+scanner.stop().catch(()=>{});
+}
+
+/* AMENDE */
+function showFine(code){
+fineBox.innerHTML=`
+<div class="ticket">
+<input id="nom" placeholder="Nom">
+<input id="prenom" placeholder="Prénom">
+<input id="montant" placeholder="Montant €">
+<button onclick="fine('${code}')">💸 AMENDE</button>
+</div>`;
+}
+
+function fine(code){
+fineBox.innerHTML=`<div class="ticket"><b>PV ENREGISTRÉ</b><br>${nom.value} ${prenom.value}<br>${montant.value} €<br>${code}</div>`;
+}
+</script>
+
+</body>
+</html>
+
